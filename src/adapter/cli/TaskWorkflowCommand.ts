@@ -3,6 +3,7 @@ import { createWorkflow } from "../../composition.js";
 import { createDefaultConfig } from "../config/WorkflowConfig.js";
 import { IssueNumber } from "../../domain/value-objects/IssueNumber.js";
 import { WorkflowError } from "../../domain/errors/WorkflowError.js";
+import { bashExec } from "../../infrastructure/shell/BashRunner.js";
 
 export async function runCli(argv: string[]): Promise<void> {
   const subcommand = argv[0];
@@ -12,10 +13,15 @@ export async function runCli(argv: string[]): Promise<void> {
     process.exit(subcommand ? 0 : 1);
   }
 
-  if (subcommand !== "task") {
+  if (subcommand !== "task" && subcommand !== "setup-labels") {
     console.error(`Unknown command: ${subcommand}`);
     printUsage();
     process.exit(1);
+  }
+
+  if (subcommand === "setup-labels") {
+    await runSetupLabels();
+    return;
   }
 
   const { values, positionals } = parseArgs({
@@ -49,7 +55,7 @@ export async function runCli(argv: string[]): Promise<void> {
     baseBranch: values["base-branch"] ?? undefined,
   });
 
-  const orchestrator = createWorkflow(config);
+  const orchestrator = createWorkflow(config, issueNumber.value);
 
   try {
     await orchestrator.execute(issueNumber);
@@ -73,10 +79,38 @@ ai-scrum - AI-powered Scrum workflow
 
 Usage:
   ai-scrum task <issueNumber> [options]
+  ai-scrum setup-labels
+
+Commands:
+  task           Run task workflow for the specified issue
+  setup-labels   Create required GitHub labels in the current repository
 
 Options:
   --ai-timeout <ms>      AI timeout in ms (default: 600000)
   --base-branch <branch> Base branch (default: "main")
   -h, --help             Show this help message
 `);
+}
+
+const LABELS: { name: string; color: string; description: string }[] = [
+  { name: "ai-scrum:issue:status:ready", color: "0E8A16", description: "実装着手可能" },
+  { name: "ai-scrum:issue:status:in-progress", color: "FBCA04", description: "実装中" },
+  { name: "ai-scrum:issue:status:in-review", color: "1D76DB", description: "レビュー中" },
+];
+
+async function runSetupLabels(): Promise<void> {
+  console.log("\nai-scrum: ラベルをセットアップします\n");
+  for (const label of LABELS) {
+    try {
+      await bashExec("gh", [
+        "label", "create", label.name,
+        "--color", label.color,
+        "--description", label.description,
+      ]);
+      console.log(`  \u2714 作成: ${label.name}`);
+    } catch {
+      console.log(`  - スキップ: ${label.name}（既に存在）`);
+    }
+  }
+  console.log("\n完了しました");
 }

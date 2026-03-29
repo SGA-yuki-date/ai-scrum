@@ -88,6 +88,67 @@ Adapter → Application (Use Cases / Ports) → Domain
 
 > **Node.js が必要な理由:** TypeScript はそのままでは実行できません。TypeScript コンパイラ (`tsc`) で JavaScript に変換し、Node.js ランタイムで実行します。Node.js をインストールすると `npm`（パッケージマネージャ）も一緒にインストールされます。
 
+### 必須ツールのセットアップ
+
+#### 1. GitHub CLI (`gh`)
+
+Issue 取得・PR 作成に必要です。
+
+```bash
+# Windows (winget)
+winget install --id GitHub.cli
+
+# macOS
+brew install gh
+
+# Linux
+https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+```
+
+インストール後、GitHub アカウントで認証します：
+
+```bash
+gh auth login
+```
+
+#### 2. GitHub Copilot CLI
+
+AI による設計・実装・レビューフェーズに必要です。
+
+```bash
+npm install -g @github/copilot
+```
+
+> **Note（Windows / Git Bash ユーザー向け）:** `gh` と npm グローバル bin ディレクトリを `~/.bashrc` の PATH に追加してください。
+> ```bash
+> export PATH="$PATH:/c/Program Files/GitHub CLI"
+> export PATH="$PATH:/c/Users/<username>/AppData/Roaming/npm"
+> ```
+
+#### 3. 動作確認
+
+```bash
+gh --version          # GitHub CLI
+gh auth status        # 認証状態
+gh copilot --version  # Copilot CLI
+```
+
+### リポジトリへのラベル登録
+
+ai-scrum はワークフロー中に Issue のラベルを自動更新します。導入先のリポジトリで以下を実行してください：
+
+```bash
+npx ai-scrum setup-labels
+```
+
+以下のラベルが作成されます：
+
+| ラベル | 説明 |
+|-------|------|
+| `ai-scrum:issue:status:ready` | 実装着手可能 |
+| `ai-scrum:issue:status:in-progress` | 実装中 |
+| `ai-scrum:issue:status:in-review` | レビュー中 |
+
 ### インストール
 
 ```bash
@@ -100,6 +161,23 @@ npm install
 
 # 3. TypeScript → JavaScript にビルド
 npm run build
+
+# 4. ai-scrum コマンドをグローバルに登録
+npm link
+```
+
+### 導入先リポジトリでのセットアップ
+
+別のリポジトリで ai-scrum を使う場合：
+
+```bash
+cd /path/to/your-project
+
+# ai-scrum をリンク（ai-scrum 側で npm link 実行済みが前提）
+npm link ai-scrum
+
+# ラベルを登録
+npx ai-scrum setup-labels
 ```
 
 ### 利用可能なスクリプト

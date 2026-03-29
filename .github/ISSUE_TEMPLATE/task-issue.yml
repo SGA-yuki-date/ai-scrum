@@ -1,6 +1,6 @@
 name: "🔧 Task Issue"
 description: "タスク実装用 Issue"
-labels: ["task", "status:ready"]
+labels: ["task", "ai-scrum:issue:status:ready"]
 body:
   - type: textarea
     id: description

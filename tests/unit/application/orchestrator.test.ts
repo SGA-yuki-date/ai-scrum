@@ -18,21 +18,14 @@ const mockIssue: TaskIssue = {
 };
 
 const mockDesign: DesignAndImplementation = {
-  approach: "TDD",
-  targetFiles: [],
-  testStrategy: "unit tests",
-  designMarkdown: "# Design",
   branch: BranchName.create("task/1-test-task"),
   changedFiles: ["src/test.ts"],
   diffStat: "1 file changed",
-  testResults: { passed: true, summary: "All passed" },
   commitHash: "abc123",
 };
 
 const mockReview: ReviewResult = {
   approved: true,
-  findings: [],
-  fixesApplied: [],
   summary: "LGTM",
 };
 
@@ -73,6 +66,8 @@ describe("TaskWorkflowOrchestrator", () => {
     };
     const gitGateway = {
       getRepoStructure: mock.fn(async () => "README.md"),
+      commitPaths: mock.fn(async () => "worklog-hash"),
+      push: mock.fn(async () => {}),
     };
     const logger = {
       step: mock.fn(),

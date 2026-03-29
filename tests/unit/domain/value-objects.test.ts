@@ -62,17 +62,17 @@ describe("BranchName", () => {
 
 describe("CommitMessage", () => {
   it("creates conventional commit for task", () => {
-    const msg = CommitMessage.forTask(23, "add login form");
-    assert.equal(msg.value, "feat(#23): add login form");
+    const msg = CommitMessage.forTask("add login form");
+    assert.equal(msg.value, "feat: add login form");
   });
 
   it("strips newlines from summary", () => {
-    const msg = CommitMessage.forTask(1, "line1\nline2");
-    assert.equal(msg.value, "feat(#1): line1 line2");
+    const msg = CommitMessage.forTask("line1\nline2");
+    assert.equal(msg.value, "feat: line1 line2");
   });
 
   it("rejects empty summary", () => {
-    assert.throws(() => CommitMessage.forTask(1, ""), WorkflowError);
+    assert.throws(() => CommitMessage.forTask(""), WorkflowError);
   });
 
   it("creates from string", () => {

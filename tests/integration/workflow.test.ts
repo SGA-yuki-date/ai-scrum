@@ -16,21 +16,14 @@ describe("Workflow Integration (mocked infrastructure)", () => {
     };
 
     const mockDesign = {
-      approach: "TDD approach",
-      targetFiles: [{ path: "src/feature.ts", action: "create" as const }],
-      testStrategy: "Unit tests",
-      designMarkdown: "# Design doc",
       branch: BranchName.create("task/23-add-feature-x"),
       changedFiles: ["src/feature.ts"],
       diffStat: "1 file changed, 50 insertions(+)",
-      testResults: { passed: true, summary: "All tests passed" },
       commitHash: "abc123def",
     };
 
     const mockReview = {
       approved: true,
-      findings: [],
-      fixesApplied: [],
       summary: "Code looks good. All acceptance criteria met.",
     };
 

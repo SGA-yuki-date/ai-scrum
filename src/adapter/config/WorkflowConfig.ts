@@ -3,6 +3,7 @@ export interface WorkflowConfig {
   baseBranch: string;
   branchPrefix: string;
   labels: {
+    ready: string;
     inProgress: string;
     inReview: string;
   };
@@ -19,15 +20,16 @@ export function createDefaultConfig(
       overrides.aiTimeout ??
       (process.env["AI_SCRUM_AI_TIMEOUT"]
         ? Number(process.env["AI_SCRUM_AI_TIMEOUT"])
-        : 600_000),
+        : 1_800_000),
     baseBranch:
       overrides.baseBranch ??
       process.env["AI_SCRUM_BASE_BRANCH"] ??
       "main",
     branchPrefix: overrides.branchPrefix ?? "task/",
     labels: overrides.labels ?? {
-      inProgress: "status:in-progress",
-      inReview: "status:in-review",
+      ready: "ai-scrum:issue:status:ready",
+      inProgress: "ai-scrum:issue:status:in-progress",
+      inReview: "ai-scrum:issue:status:in-review",
     },
     testCommand:
       overrides.testCommand ?? process.env["AI_SCRUM_TEST_COMMAND"],

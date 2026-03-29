@@ -1,16 +1,13 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import type { IGitGateway } from "../../application/ports/IGitGateway.js";
 import type { BranchName } from "../../domain/value-objects/BranchName.js";
 import type { CommitMessage } from "../../domain/value-objects/CommitMessage.js";
 import { WorkflowError } from "../../domain/errors/WorkflowError.js";
-
-const execFileAsync = promisify(execFile);
+import { bashExec } from "../shell/BashRunner.js";
 
 export class GitCliGateway implements IGitGateway {
   async createBranch(name: BranchName): Promise<void> {
     try {
-      await execFileAsync("git", ["switch", "-c", name.value]);
+      await bashExec("git", ["switch", "-c", name.value]);
     } catch (error) {
       throw new WorkflowError(
         `Failed to create branch ${name}: ${error instanceof Error ? error.message : String(error)}`,
@@ -20,13 +17,13 @@ export class GitCliGateway implements IGitGateway {
   }
 
   async hasChanges(): Promise<boolean> {
-    const { stdout } = await execFileAsync("git", ["status", "--porcelain"]);
+    const { stdout } = await bashExec("git", ["status", "--porcelain"]);
     return stdout.trim().length > 0;
   }
 
   async diffStat(): Promise<string> {
-    await execFileAsync("git", ["add", "-A"]);
-    const { stdout } = await execFileAsync("git", [
+    await bashExec("git", ["add", "-A"]);
+    const { stdout } = await bashExec("git", [
       "diff",
       "--cached",
       "--stat",
@@ -34,9 +31,24 @@ export class GitCliGateway implements IGitGateway {
     return stdout.trim();
   }
 
+  async diffStatAgainstBase(baseBranch: string): Promise<string> {
+    try {
+      const { stdout } = await bashExec("git", [
+        "diff",
+        "--stat",
+        baseBranch,
+      ]);
+      return stdout.trim();
+    } catch (error) {
+      throw new WorkflowError(
+        `Failed to get diff stat against ${baseBranch}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   async diffAgainstBase(baseBranch: string): Promise<string> {
     try {
-      const { stdout } = await execFileAsync("git", [
+      const { stdout } = await bashExec("git", [
         "diff",
         baseBranch,
       ]);
@@ -50,9 +62,9 @@ export class GitCliGateway implements IGitGateway {
 
   async commitAll(message: CommitMessage): Promise<string> {
     try {
-      await execFileAsync("git", ["add", "-A"]);
-      await execFileAsync("git", ["commit", "-m", message.value]);
-      const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"]);
+      await bashExec("git", ["add", "-A"]);
+      await bashExec("git", ["commit", "-m", message.value]);
+      const { stdout } = await bashExec("git", ["rev-parse", "HEAD"]);
       return stdout.trim();
     } catch (error) {
       throw new WorkflowError(
@@ -61,9 +73,25 @@ export class GitCliGateway implements IGitGateway {
     }
   }
 
+  async commitPaths(paths: string[], message: CommitMessage): Promise<void> {
+    try {
+      await bashExec("git", ["add", "--", ...paths]);
+      // git diff --cached --quiet exits 0 (no staged changes) or 1 (has staged changes)
+      const hasStagedChanges = await bashExec("git", ["diff", "--cached", "--quiet"])
+        .then(() => false)
+        .catch(() => true);
+      if (!hasStagedChanges) return;
+      await bashExec("git", ["commit", "-m", message.value]);
+    } catch (error) {
+      throw new WorkflowError(
+        `Failed to commit paths: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   async push(branch: BranchName): Promise<void> {
     try {
-      await execFileAsync("git", ["push", "origin", branch.value]);
+      await bashExec("git", ["push", "origin", branch.value]);
     } catch (error) {
       throw new WorkflowError(
         `Failed to push branch ${branch}: ${error instanceof Error ? error.message : String(error)}`,
@@ -73,7 +101,7 @@ export class GitCliGateway implements IGitGateway {
 
   async getRepoStructure(): Promise<string> {
     try {
-      const { stdout } = await execFileAsync("git", ["ls-files"]);
+      const { stdout } = await bashExec("git", ["ls-files"]);
       return stdout.trim();
     } catch {
       return "(Could not retrieve repository structure)";

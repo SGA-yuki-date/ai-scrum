@@ -8,12 +8,24 @@ export class ParseIssueUseCase {
   constructor(
     private readonly issueGateway: IIssueGateway,
     private readonly logger: ILogger,
-    private readonly labels: { inProgress: string },
+    private readonly labels: { ready: string; inProgress: string },
   ) {}
 
   async execute(issueNumber: IssueNumber): Promise<TaskIssue> {
     this.logger.info(`Fetching issue ${issueNumber}...`);
     const raw = await this.issueGateway.fetchIssue(issueNumber);
+
+    const hasReadyLabel = raw.labels.some((l) => l.name === this.labels.ready);
+    if (!hasReadyLabel) {
+      this.logger.info(
+        `Issue #${issueNumber} does not have the "${this.labels.ready}" label. Workflow aborted.`,
+      );
+      throw new WorkflowError(
+        `Issue #${issueNumber} is not ready (missing label: ${this.labels.ready})`,
+        "parse-issue",
+      );
+    }
+
     const parsed = this.parseBody(raw.body);
 
     if (!parsed.description) {
@@ -29,7 +41,7 @@ export class ParseIssueUseCase {
     await this.issueGateway.updateLabels(
       issueNumber,
       [this.labels.inProgress],
-      ["status:ready"],
+      ["ai-scrum:issue:status:ready"],
     );
     this.logger.info(`Labels updated to ${this.labels.inProgress}`);
 

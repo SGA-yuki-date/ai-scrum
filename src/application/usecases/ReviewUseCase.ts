@@ -1,13 +1,12 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { IGitGateway } from "../ports/IGitGateway.js";
 import type { IAIService } from "../ports/IAIService.js";
 import type { IPromptRenderer } from "../ports/IPromptRenderer.js";
 import type { ILogger } from "../ports/ILogger.js";
 import type { TaskIssue } from "../../domain/entities/TaskIssue.js";
 import type { DesignAndImplementation } from "../../domain/entities/DesignAndImplementation.js";
-import type {
-  ReviewResult,
-  ReviewFinding,
-} from "../../domain/entities/ReviewResult.js";
+import type { ReviewResult } from "../../domain/entities/ReviewResult.js";
 import { CommitMessage } from "../../domain/value-objects/CommitMessage.js";
 
 export class ReviewUseCase {
@@ -29,9 +28,21 @@ export class ReviewUseCase {
     const diff = await this.gitGateway.diffAgainstBase(this.config.baseBranch);
     this.logger.info(`Diff size: ${diff.length} characters`);
 
+    const worklogPath = join(
+      this.config.workingDir,
+      "worklog",
+      `task_${issue.number.value}.txt`,
+    );
+    let worklog: string;
+    try {
+      worklog = readFileSync(worklogPath, "utf-8");
+    } catch {
+      worklog = "(作業ログが見つかりませんでした)";
+    }
+
     const prompt = await this.promptRenderer.render("review", {
       title: issue.title,
-      approach: result.approach,
+      worklog,
       acceptanceCriteria: issue.acceptanceCriteria.join("\n- "),
       diff,
     });
@@ -42,48 +53,23 @@ export class ReviewUseCase {
       this.config.workingDir,
     );
 
-    const reviewResult = this.parseReviewResponse(aiResponse);
+    // AIレスポンス全体をサマリーとして使用し、error キーワードがあれば要注意と判定
+    const approved = !/\[error\]/i.test(aiResponse);
+    const reviewResult: ReviewResult = {
+      approved,
+      summary: aiResponse,
+    };
 
     const hasChanges = await this.gitGateway.hasChanges();
     if (hasChanges) {
       this.logger.info("AI applied fixes during review. Committing...");
       const commitMessage = CommitMessage.create(
-        `fix(#${issue.number.value}): address review findings`,
+        "fix: address review findings",
       );
       await this.gitGateway.commitAll(commitMessage);
       await this.gitGateway.push(result.branch);
-      reviewResult.fixesApplied.push("Review fixes committed and pushed.");
     }
 
     return reviewResult;
-  }
-
-  private parseReviewResponse(response: string): ReviewResult {
-    const findings: ReviewFinding[] = [];
-    const findingsMatch = response.match(
-      /## (?:指摘事項|Findings)\n([\s\S]*?)(?=\n## |$)/,
-    );
-    if (findingsMatch) {
-      const lines = findingsMatch[1]
-        .split("\n")
-        .filter((l) => l.trim().startsWith("-"));
-      for (const line of lines) {
-        const severityMatch = line.match(/\[(error|warning|info)\]/i);
-        findings.push({
-          severity:
-            (severityMatch?.[1]?.toLowerCase() as ReviewFinding["severity"]) ??
-            "info",
-          message: line.replace(/^-\s*(\[.*?\])?\s*/, "").trim(),
-        });
-      }
-    }
-
-    const approved = !findings.some((f) => f.severity === "error");
-    const summaryMatch = response.match(
-      /## (?:サマリー|Summary)\n([\s\S]*?)(?=\n## |$)/,
-    );
-    const summary = summaryMatch?.[1]?.trim() ?? response.slice(0, 500);
-
-    return { approved, findings, fixesApplied: [], summary };
   }
 }

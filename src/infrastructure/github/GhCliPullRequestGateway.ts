@@ -1,11 +1,12 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { randomBytes } from "node:crypto";
 import type { IPullRequestGateway } from "../../application/ports/IPullRequestGateway.js";
 import type { PullRequest } from "../../domain/entities/PullRequest.js";
 import { BranchName } from "../../domain/value-objects/BranchName.js";
 import { WorkflowError } from "../../domain/errors/WorkflowError.js";
-
-const execFileAsync = promisify(execFile);
+import { bashExec } from "../shell/BashRunner.js";
 
 export class GhCliPullRequestGateway implements IPullRequestGateway {
   async create(params: {
@@ -14,26 +15,32 @@ export class GhCliPullRequestGateway implements IPullRequestGateway {
     base: string;
     head: string;
   }): Promise<PullRequest> {
+    const bodyFile = join(
+      tmpdir(),
+      `ai-scrum-pr-body-${randomBytes(8).toString("hex")}.md`,
+    );
+    writeFileSync(bodyFile, params.body, "utf-8");
     try {
-      const { stdout } = await execFileAsync("gh", [
+      const { stdout } = await bashExec("gh", [
         "pr",
         "create",
         "--title",
         params.title,
-        "--body",
-        params.body,
+        "--body-file",
+        bodyFile,
         "--base",
         params.base,
         "--head",
         params.head,
-        "--json",
-        "number,url,title",
       ]);
-      const data = JSON.parse(stdout);
+      // gh pr create outputs the PR URL on success
+      const url = stdout.trim();
+      const numberMatch = url.match(/\/pull\/(\d+)$/);
+      const number = numberMatch ? parseInt(numberMatch[1], 10) : 0;
       return {
-        number: data.number,
-        url: data.url,
-        title: data.title,
+        number,
+        url,
+        title: params.title,
         branch: BranchName.create(params.head),
       };
     } catch (error) {
@@ -41,6 +48,8 @@ export class GhCliPullRequestGateway implements IPullRequestGateway {
         `Failed to create PR: ${error instanceof Error ? error.message : String(error)}`,
         "create-pr",
       );
+    } finally {
+      try { unlinkSync(bodyFile); } catch { /* ignore */ }
     }
   }
 }

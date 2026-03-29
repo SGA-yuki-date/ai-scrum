@@ -3,12 +3,12 @@ import { WorkflowError } from "../errors/WorkflowError.js";
 export class CommitMessage {
   private constructor(readonly value: string) {}
 
-  static forTask(issueNumber: number, summary: string): CommitMessage {
+  static forTask(summary: string): CommitMessage {
     const sanitized = summary.replace(/\n/g, " ").trim();
     if (!sanitized) {
       throw new WorkflowError("Commit message summary cannot be empty.");
     }
-    return new CommitMessage(`feat(#${issueNumber}): ${sanitized}`);
+    return new CommitMessage(`feat: ${sanitized}`);
   }
 
   static create(value: string): CommitMessage {

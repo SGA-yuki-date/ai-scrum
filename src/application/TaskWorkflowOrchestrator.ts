@@ -5,6 +5,9 @@ import type { CreatePullRequestUseCase } from "./usecases/CreatePullRequestUseCa
 import type { IGitGateway } from "./ports/IGitGateway.js";
 import type { ILogger } from "./ports/ILogger.js";
 import type { IssueNumber } from "../domain/value-objects/IssueNumber.js";
+import type { ReviewResult } from "../domain/entities/ReviewResult.js";
+import { CommitMessage } from "../domain/value-objects/CommitMessage.js";
+import { WorkflowError } from "../domain/errors/WorkflowError.js";
 
 export class TaskWorkflowOrchestrator {
   constructor(
@@ -25,11 +28,41 @@ export class TaskWorkflowOrchestrator {
     const result = await this.designAndImplement.execute(issue, repoStructure);
 
     this.logger.step("3/4", "レビュー");
-    const review = await this.review.execute(issue, result);
+    let review: ReviewResult;
+    if (result.timedOut) {
+      this.logger.info(
+        "⚠️  設計＆実装がタイムアウトしたため、レビューをスキップします。",
+      );
+      review = {
+        approved: false,
+        summary: "⚠️ 設計＆実装がタイムアウトしたため、レビューはスキップされました。",
+      };
+    } else {
+      try {
+        review = await this.review.execute(issue, result);
+      } catch (err) {
+        if (err instanceof WorkflowError && err.isTimeout) {
+          this.logger.info(
+            "⚠️  レビューがタイムアウトしました。スキップして PR を作成します。",
+          );
+          review = {
+            approved: false,
+            summary: "⚠️ レビューはタイムアウトのためスキップされました。",
+          };
+        } else {
+          throw err;
+        }
+      }
+    }
 
     this.logger.step("4/4", "PR 作成");
     await this.createPR.execute(issue, result, review);
 
     this.logger.info("Workflow completed successfully!");
+
+    // PR作成完了後、ワークログをコミット＆プッシュ
+    const worklogMessage = CommitMessage.create("chore: update worklog");
+    await this.gitGateway.commitPaths(["worklog/"], worklogMessage);
+    await this.gitGateway.push(result.branch);
   }
 }

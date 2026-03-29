@@ -10,7 +10,7 @@
     "ai-scrum": "./dist/src/main.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/prompts dist/src/prompts",
     "start": "node dist/src/main.js",
     "test": "tsc && node --test dist/tests/unit/domain/*.test.js dist/tests/unit/application/*.test.js dist/tests/unit/infrastructure/*.test.js",
     "test:integration": "tsc && node --test dist/tests/integration/*.test.js",
