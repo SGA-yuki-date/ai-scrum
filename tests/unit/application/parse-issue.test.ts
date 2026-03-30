@@ -27,6 +27,7 @@ function makeIssueGateway(labels: string[]) {
       body: validBody,
       labels: labels.map((name) => ({ name })),
     })),
+    listReadyIssues: mock.fn(async () => []),
     updateLabels: mock.fn(async () => {}),
   };
 }

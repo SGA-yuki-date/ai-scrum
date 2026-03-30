@@ -1,6 +1,7 @@
 import type {
   IIssueGateway,
   RawIssueData,
+  ReadyIssueSummary,
 } from "../../application/ports/IIssueGateway.js";
 import type { IssueNumber } from "../../domain/value-objects/IssueNumber.js";
 import { WorkflowError } from "../../domain/errors/WorkflowError.js";
@@ -22,6 +23,31 @@ export class GhCliIssueGateway implements IIssueGateway {
       throw new WorkflowError(
         `Failed to fetch issue ${number}: ${error instanceof Error ? error.message : String(error)}`,
         "parse-issue",
+      );
+    }
+  }
+
+  async listReadyIssues(readyLabel: string): Promise<ReadyIssueSummary[]> {
+    try {
+      const { stdout } = await bashExec("gh", [
+        "issue",
+        "list",
+        "--label", readyLabel,
+        "--state", "open",
+        "--json", "number,title,labels",
+        "--limit", "100",
+      ]);
+      const data: Array<{ number: number; title: string; labels: Array<{ name: string }> }> =
+        JSON.parse(stdout);
+      return data.map((issue) => ({
+        number: issue.number,
+        title: issue.title,
+        labels: issue.labels.map((l) => l.name),
+      }));
+    } catch (error) {
+      throw new WorkflowError(
+        `Failed to list ready issues: ${error instanceof Error ? error.message : String(error)}`,
+        "dispatch",
       );
     }
   }

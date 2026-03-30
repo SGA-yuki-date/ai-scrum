@@ -6,8 +6,15 @@ export interface RawIssueData {
   labels: Array<{ name: string }>;
 }
 
+export interface ReadyIssueSummary {
+  number: number;
+  title: string;
+  labels: string[];
+}
+
 export interface IIssueGateway {
   fetchIssue(number: IssueNumber): Promise<RawIssueData>;
+  listReadyIssues(readyLabel: string): Promise<ReadyIssueSummary[]>;
   updateLabels(
     number: IssueNumber,
     add: string[],
